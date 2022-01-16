@@ -7,6 +7,10 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n);
 
 void merge(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end);
 
+void initWithRandomData(DATATYPE* l, int size);
+
+bool checkSolution(DATATYPE* l, int size);
+
 int main(int argc, char const *argv[]) {
 
     struct timespec start, stop;
@@ -17,15 +21,16 @@ int main(int argc, char const *argv[]) {
     for(j=min_size; j<= max_size; j *= 2){
         std::cout << "############ LENGTH OF LIST: " << j << " ############\n";
 
-        DATATYPE *sorted = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *list = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *list_s = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        for(i=0; i<j; i++){
-            list[i] = rand()%10000;
-            list_s[i] = list[i];
-        }
+        DATATYPE *unsorted = (DATATYPE *) malloc(j*sizeof(DATATYPE));
+        DATATYPE *sorted_gpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
+        DATATYPE *sorted_cpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
+
+        initWithRandomData(unsorted,j);
+        
+        memcpy(sorted_cpu,unsorted,sizeof(unsorted));
+
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
-        mergesort(list, sorted, j);
+        mergesort(unsorted, sorted_gpu, j);
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
         double result = (stop.tv_sec - start.tv_sec) * 1e3 + (stop.tv_nsec - start.tv_nsec) / 1e6;
         std::cout << "TIME TAKEN(Parallel GPU): "<< result << "ms\n";
@@ -33,26 +38,42 @@ int main(int argc, char const *argv[]) {
 
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
         //mergesort_cpu(list_s, sorted_s, j);
-        std::sort(list_s, list_s + j);
+        std::sort(sorted_cpu, sorted_cpu + j);
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
         result = (stop.tv_sec - start.tv_sec) * 1e3 + (stop.tv_nsec - start.tv_nsec) / 1e6;
         std::cout << "TIME TAKEN(Sequential CPU): "<< result << "ms\n";
         
-
         for(i=1; i<j; i++){
-            if(sorted[i-1]>sorted[i]){
+            if(sorted_gpu[i-1]>sorted_gpu[i]){
                 std::cout << "WRONG ANSWER _1\n";
                 return -1;
             }
         }
-        std::cout << "CORRECT ANSWER\n";
+        bool valid = checkSolution(sorted_gpu,j);
 
-        free(list);
-        free(sorted);
-        free(list_s);
+        if(!valid) std::cout << "WRONG ANSWER _1\n";
+        else std::cout << "CORRECT ANSWER\n";
+
+        free(unsorted);
+        free(sorted_gpu);
+        free(sorted_cpu);
         std::cout << "##################################################\n";
     }
     return 0;
+}
+
+
+void initWithRandomData(DATATYPE* l, int size){
+    for(int i=0; i<size; i++){
+        l[i] = rand();
+    }
+}
+
+bool checkSolution(DATATYPE* l, int size){
+    for(int i=1; i<size; i++){
+        if(l[i-1] > l[i]) return false;
+    }
+    return true;
 }
 
 // // // // // // // // // // // // // // // //
