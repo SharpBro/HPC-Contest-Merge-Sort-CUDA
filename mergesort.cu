@@ -1,5 +1,9 @@
 #include <algorithm>
 #include <iostream>
+#include <time.h>
+
+#define START_T(start)  start = clock()
+#define STOP_T(t)  t = (clock() - t)/CLOCKS_PER_SEC // ms insead of s
 
 typedef int DATATYPE;
 
@@ -13,7 +17,8 @@ bool checkSolution(DATATYPE* l, int size);
 
 int main(int argc, char const *argv[]) {
 
-    struct timespec start, stop;
+    //struct timespec start, stop;
+    double elapsed_time;
 
     int i, j;
     unsigned min_size = 2 << 16;
@@ -29,19 +34,17 @@ int main(int argc, char const *argv[]) {
         
         memcpy(sorted_cpu,unsorted,sizeof(unsorted));
 
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+        START_T(elapsed_time);
         mergesort(unsorted, sorted_gpu, j);
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
-        double result = (stop.tv_sec - start.tv_sec) * 1e3 + (stop.tv_nsec - start.tv_nsec) / 1e6;
-        std::cout << "TIME TAKEN(Parallel GPU): "<< result << "ms\n";
+        STOP_T(elapsed_time);
+        
+        std::cout << "TIME TAKEN(Parallel GPU): "<< elapsed_time << " s\n";
 
-
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
-        //mergesort_cpu(list_s, sorted_s, j);
+        START_T(elapsed_time);
         std::sort(sorted_cpu, sorted_cpu + j);
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
-        result = (stop.tv_sec - start.tv_sec) * 1e3 + (stop.tv_nsec - start.tv_nsec) / 1e6;
-        std::cout << "TIME TAKEN(Sequential CPU): "<< result << "ms\n";
+        STOP_T(elapsed_time);
+        
+        std::cout << "TIME TAKEN(Sequential CPU): "<< elapsed_time << " s\n";
         
         for(i=1; i<j; i++){
             if(sorted_gpu[i-1]>sorted_gpu[i]){
@@ -188,6 +191,8 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
     //int max_active_warps = max_active_warps_per_sm * max_procs_count;
 
     int chunk_size;
+    float total_elapsed_time = 0;
+
     for (chunk_size = 2; chunk_size < 2 * n; chunk_size *= 2)
     {
         int blocks_required = 0, threads_per_block = 0;
@@ -195,7 +200,6 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
 
         if (threads_required <= 3 * warp_size && !sequential)
         {
-            //std::cout << "sequential mode\n";
             sequential = true;
             if (flag)
                 cudaMemcpy(list, sorted_d, size, cudaMemcpyDeviceToHost);
@@ -248,16 +252,36 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
 
         if (sequential)
         {
+            double elapsed;
 
+            START_T(elapsed);
             mergesort_gpu_seq(list, sorted, n, chunk_size);
+            STOP_T(elapsed);
+            
+            //std::cout << "sequential elapsed: " << elapsed << "\n";
+            total_elapsed_time += elapsed;
         }
         else
         {
+            cudaEvent_t start, stop;
+            cudaEventCreate(&start);
+            cudaEventCreate(&stop);
+            
             //std::cout << "parallel mode\n";
-            if (flag)
+            cudaEventRecord(start);
+            if (flag){
                 mergesort_gpu<<<blocks_required, threads_per_block>>>(sorted_d, list_d, n, chunk_size);
-            else
+            }else{
                 mergesort_gpu<<<blocks_required, threads_per_block>>>(list_d, sorted_d, n, chunk_size);
+            }
+
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float elapsed;
+            cudaEventElapsedTime(&elapsed, start, stop);
+
+            total_elapsed_time += elapsed;
+
             cudaDeviceSynchronize();
 
             err = cudaGetLastError();
@@ -269,5 +293,8 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
             flag = !flag;
         }
     }
+
+    std::cout << "merge sort time: " << total_elapsed_time << " ms\n";
+
     return 0;
 }
