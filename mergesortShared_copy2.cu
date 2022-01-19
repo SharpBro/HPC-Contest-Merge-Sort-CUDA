@@ -49,15 +49,21 @@ int main(int argc, char const *argv[]) {
         
         std::cout << "TIME TAKEN(Sequential CPU): "<< elapsed_time << " s\n";
         
+        printf("\n\nOUTPUT:\n");
         for(i=1; i<j; i++){
+            printf("%d ", sorted_gpu[i]);
             if(sorted_gpu[i-1]>sorted_gpu[i]){
                 std::cout << "WRONG ANSWER _1\n";
                 return -1;
             }
         }
+        printf("\n\n");
         bool valid = checkSolution(sorted_gpu,j);
 
-        if(!valid) std::cout << "WRONG ANSWER _1\n";
+        if(!valid){
+            std::cout << "WRONG ANSWER _2\n";
+            return -1;
+        }
         else std::cout << "CORRECT ANSWER\n";
 
         free(unsorted);
@@ -103,34 +109,28 @@ __device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, 
 
 __global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
 
-    __shared__ DATATYPE listS[NB];
-    __shared__ DATATYPE sortedS[NB];
+    extern __shared__ DATATYPE listS[];
+    extern __shared__ DATATYPE sortedS[];
 
+    int idx = threadIdx.x;
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    int start = tid * chunk;
-    if (start >= n)
+
+    if (tid > n)
+        return;    
+    listS[idx] = list[tid];
+    __syncthreads();
+
+    int start = idx * chunk;
+    if (start >= blockDim.x)
         return;
     int mid, end;
 
-    for (int kb = 0; kb < (n / NB); kb++){
-        memcpy(listS, list+(kb*NB), NB);
-        memcpy(sortedS, sorted+(kb*NB), NB);
-        __syncthreads();
+    mid = min(start + chunk / 2, blockDim.x);
+    end = min(start + chunk, blockDim.x);
+    merge_gpu(listS, sortedS, start, mid, end);
+    __syncthreads();
 
-        mid = min(start + chunk / 2, NB);
-        end = min(start + chunk, NB);
-        merge_gpu(listS, sortedS, start, mid, end);
-    }
-
-    if(n % NB){
-        memcpy(listS, list+(n - NB), n%NB);
-        memcpy(sortedS, sorted+(n - NB), n%NB);
-        __syncthreads();
-
-        mid = min(start + chunk / 2, n%NB);
-        end = min(start + chunk, n%NB);
-        merge_gpu(listS, sortedS, start, mid, end);
-    }
+    sorted[tid] = sortedS[idx];
 }
 
 // Sequential Merge Sort for GPU when Number of Threads Required gets below 1 Warp Size
@@ -269,10 +269,11 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
             
             //std::cout << "parallel mode\n";
             cudaEventRecord(start);
-            if (flag){
-                mergesort_gpu<<<blocks_required, threads_per_block>>>(sorted_d, list_d, n, chunk_size);
+            int blockSize_byte = threads_per_block * sizeof(DATATYPE);
+            if (flag){                
+                mergesort_gpu<<<blocks_required, threads_per_block, blockSize_byte>>>(sorted_d, list_d, n, chunk_size);
             } else {
-                mergesort_gpu<<<blocks_required, threads_per_block>>>(list_d, sorted_d, n, chunk_size);
+                mergesort_gpu<<<blocks_required, threads_per_block, blockSize_byte>>>(list_d, sorted_d, n, chunk_size);
             }
 
             cudaEventRecord(stop);

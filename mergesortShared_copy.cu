@@ -103,8 +103,8 @@ __device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, 
 
 __global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
 
-    __shared__ DATATYPE listS[NB];
-    __shared__ DATATYPE sortedS[NB];
+    __shared__ DATATYPE listS[n];
+    __shared__ DATATYPE sortedS[n];
 
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int start = tid * chunk;
@@ -112,25 +112,19 @@ __global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk
         return;
     int mid, end;
 
-    for (int kb = 0; kb < (n / NB); kb++){
-        memcpy(listS, list+(kb*NB), NB);
-        memcpy(sortedS, sorted+(kb*NB), NB);
-        __syncthreads();
+    mid = min(start + chunk / 2, n);
+    end = min(start + chunk, n);
 
-        mid = min(start + chunk / 2, NB);
-        end = min(start + chunk, NB);
-        merge_gpu(listS, sortedS, start, mid, end);
-    }
+    memcpy(listS, list+start, (start+chunk > n) ? n-start : chunk);
+    memcpy(sortedS, sortedS+start, (start+chunk > n) ? n-start : chunk);
+    __syncthreads();
 
-    if(n % NB){
-        memcpy(listS, list+(n - NB), n%NB);
-        memcpy(sortedS, sorted+(n - NB), n%NB);
-        __syncthreads();
+    merge_gpu(listS, sortedS, start, mid, end);
 
-        mid = min(start + chunk / 2, n%NB);
-        end = min(start + chunk, n%NB);
-        merge_gpu(listS, sortedS, start, mid, end);
-    }
+    memcpy(list+start, listS, (start+chunk > n) ? n-start : chunk);
+    memcpy(sortedS+start, sortedS, (start+chunk > n) ? n-start : chunk);
+    __syncthreads();
+
 }
 
 // Sequential Merge Sort for GPU when Number of Threads Required gets below 1 Warp Size
