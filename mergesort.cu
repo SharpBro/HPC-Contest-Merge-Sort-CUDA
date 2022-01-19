@@ -82,8 +82,7 @@ bool checkSolution(DATATYPE* l, int size){
 // // // // // // // // // // // // // // // //
 //  GPU Implementation                       //
 // // // // // // // // // // // // // // // //
-__device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end)
-{
+__device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end) {
     int k = start, i = start, j = mid;
     while (i < mid || j < end)
     {
@@ -99,8 +98,7 @@ __device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, 
     }
 }
 
-__global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk)
-{
+__global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
 
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int start = tid * chunk;
@@ -117,8 +115,7 @@ __global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk
 void mergesort_gpu_seq(DATATYPE *list, DATATYPE *sorted, int n, int chunk)
 {
     int chunk_id;
-    for (chunk_id = 0; chunk_id * chunk <= n; chunk_id++)
-    {
+    for (chunk_id = 0; chunk_id * chunk <= n; chunk_id++) {
         int start = chunk_id * chunk, end, mid;
         if (start >= n)
             return;
@@ -131,8 +128,7 @@ void mergesort_gpu_seq(DATATYPE *list, DATATYPE *sorted, int n, int chunk)
 void merge(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end)
 {
     int ti=start, i=start, j=mid;
-    while (i<mid || j<end)
-    {
+    while (i<mid || j<end) {
         if (j==end) sorted[ti] = list[i++];
         else if (i==mid) sorted[ti] = list[j++];
         else if (list[i]<list[j]) sorted[ti] = list[i++];
@@ -144,8 +140,7 @@ void merge(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end)
         list[ti] = sorted[ti];
 }
 
-int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
-{
+int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
 
     DATATYPE *list_d;
     DATATYPE *sorted_d;
@@ -160,8 +155,7 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
 
     cudaMemcpy(list_d, list, size, cudaMemcpyHostToDevice);
     cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess)
-    {
+    if (err != cudaSuccess) {
         printf("Error_2: %s\n", cudaGetErrorString(err));
         return -1;
     }
@@ -169,15 +163,9 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
 
-    //int major = prop.major;
-    //int minor = prop.minor;
-    /* if (major != 3 || minor != 5)
-    {
-        printf("The Program is Optimized only for sm_35 Compute Capability..May NOT Work for Other CCs\n");
-    } */
     // vaues for sm_35 compute capability
     int max_active_blocks_per_sm = 16;
-    if(prop.major > 3)
+    if(prop.major > 3 && (prop.major < 8 && prop.minor < 5) || prop.major == 8)
         max_active_blocks_per_sm = 32;
 
     //const int max_active_warps_per_sm = 64;
@@ -193,13 +181,11 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
     int chunk_size;
     float total_elapsed_time = 0;
 
-    for (chunk_size = 2; chunk_size < 2 * n; chunk_size *= 2)
-    {
+    for (chunk_size = 2; chunk_size < 2 * n; chunk_size *= 2) {
         int blocks_required = 0, threads_per_block = 0;
         int threads_required = (n % chunk_size == 0) ? n / chunk_size : n / chunk_size + 1;
 
-        if (threads_required <= 3 * warp_size && !sequential)
-        {
+        if (threads_required <= 3 * warp_size && !sequential) {
             sequential = true;
             if (flag)
                 cudaMemcpy(list, sorted_d, size, cudaMemcpyDeviceToHost);
@@ -214,44 +200,37 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
             cudaFree(list_d);
             cudaFree(sorted_d);
         }
-        else if (threads_required < max_threads_per_block)
-        {
+        else if (threads_required < max_threads_per_block) {
             threads_per_block = 4 * warp_size;
             dummy = threads_required / threads_per_block;
             blocks_required = (threads_required % threads_per_block == 0) ? dummy : dummy + 1;
         }
-        else if (threads_required < 4 * max_active_blocks * warp_size)
-        {
+        else if (threads_required < 4 * max_active_blocks * warp_size) {
             threads_per_block = max_threads_per_block / 2;
             dummy = threads_required / threads_per_block;
             blocks_required = (threads_required % threads_per_block == 0) ? dummy : dummy + 1;
         }
-        else
-        {
+        else {
             dummy = threads_required / max_active_blocks;
             // int estimated_threads_per_block = (dummy%warp_size==0) ? dummy : (dummy/warp_size + 1)*warp_size;
             int estimated_threads_per_block = (threads_required % max_active_blocks == 0) ? dummy : dummy + 1;
-            if (estimated_threads_per_block > max_threads_per_block)
-            {
+            if (estimated_threads_per_block > max_threads_per_block) {
                 threads_per_block = max_threads_per_block;
                 dummy = threads_required / max_threads_per_block;
                 blocks_required = (threads_required % max_threads_per_block == 0) ? dummy : dummy + 1;
             }
-            else
-            {
+            else {
                 threads_per_block = estimated_threads_per_block;
                 blocks_required = max_active_blocks;
             }
         }
 
-        if (blocks_required >= max_grid_size)
-        {
+        if (blocks_required >= max_grid_size) {
             printf("ERROR_2: Too many Blocks Required\n");
             return -1;
         }
 
-        if (sequential)
-        {
+        if (sequential) {
             double elapsed;
 
             START_T(elapsed);
@@ -261,8 +240,7 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
             //std::cout << "sequential elapsed: " << elapsed << "\n";
             total_elapsed_time += elapsed;
         }
-        else
-        {
+        else {
             cudaEvent_t start, stop;
             cudaEventCreate(&start);
             cudaEventCreate(&stop);
@@ -271,7 +249,7 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n)
             cudaEventRecord(start);
             if (flag){
                 mergesort_gpu<<<blocks_required, threads_per_block>>>(sorted_d, list_d, n, chunk_size);
-            }else{
+            } else {
                 mergesort_gpu<<<blocks_required, threads_per_block>>>(list_d, sorted_d, n, chunk_size);
             }
 
