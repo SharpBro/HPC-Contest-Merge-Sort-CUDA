@@ -69,7 +69,8 @@ int main(int argc, char const *argv[]) {
     STOP_T(elapsed_time_CPU);
     
     //size; merge_time_GPU; elapsed_time_GPU; elapsed_time_CPU
-    printf("%d;%.5f;%.5f;%.5f\n",size,merge_time_GPU,elapsed_time_GPU,elapsed_time_CPU);
+    // printf("%d;%.5f;%.5f;%.5f\n",size,merge_time_GPU,elapsed_time_GPU,elapsed_time_CPU);
+    printf("%d,%d,%.5f,%.5f,%.5f\n",VERSION, size, merge_time_GPU, elapsed_time_GPU, elapsed_time_CPU);
 
     if (test){
         bool valid = checkSolution(sorted_gpu, size);
