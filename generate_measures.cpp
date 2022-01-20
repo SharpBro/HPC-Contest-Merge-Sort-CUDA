@@ -68,6 +68,7 @@ int main(int argc, char const *argv[]) {
         std::sort(sorted_cpu, sorted_cpu + size);
     STOP_T(elapsed_time_CPU);
     
+    //size; merge_time_GPU; elapsed_time_GPU; elapsed_time_CPU
     std::cout << size << ";" << merge_time_GPU << ";" << elapsed_time_GPU << ";" << elapsed_time_CPU << "\n";
 
     if (test){
