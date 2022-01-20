@@ -12,8 +12,8 @@ int main(int argc, char const *argv[]) {
     const int VERSION = atoi(argv[1]);
 
     int i, j;
-    unsigned min_size = 2 << 16;
-    unsigned max_size = 2 << 24;
+    unsigned min_size = 1 << 16; // 2^16
+    unsigned max_size = 1 << 24; // 2^24
     for(j=min_size; j<= max_size; j *= 2){
         std::cout << "############ LENGTH OF LIST: " << j << " ############\n";
 
