@@ -1,69 +1,88 @@
 #include "main.hpp"
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <iostream>
+#include <sstream>
+#include <string>
+
+//typedef std::basic_ostringstream<char> ostringstream;
+
 int main(int argc, char const *argv[]) {
 
     //struct timespec start, stop;
-    double elapsed_time;
+    double elapsed_time_GPU, merge_time_GPU, elapsed_time_CPU;
 
-    if(argc != 2){
-        std::cout << "usage: " << argv[0] << " [VERSION]\n";
+    if(argc < 3){
+        std::cout << "usage: " << argv[0] << " [VERSION] [SIZE] {TEST}\n";
+        std::cout << "VERSION values:\n";
         std::cout << "\t 1 - work on global memory\n";
         std::cout << "\t 2 - work on texture memory\n";
         std::cout << "\t 3 - work with streams on global memory\n";
         std::cout << "\t default - work on global memory\n";
+        std::cout << "TEST (optional):\n";
+        std::cout << "\t any numbers - check corect result\n";
+        std::cout << "\t dafult - disabled\n";
         return -1;
     }
     
     const int VERSION = atoi(argv[1]);
+    const int size = atoi(argv[2]);
+    const bool test = (argc == 4) ? true : false;
+    
+    DATATYPE *unsorted = (DATATYPE *) malloc(size*sizeof(DATATYPE));
+    DATATYPE *sorted_gpu = (DATATYPE *) malloc(size*sizeof(DATATYPE));
+    DATATYPE *sorted_cpu = (DATATYPE *) malloc(size*sizeof(DATATYPE));
 
-    int i, j;
-    unsigned min_size = 1 << 16; // 2^16
-    unsigned max_size = 1 << 24; // 2^24
-    for(j=min_size; j<= max_size; j *= 2){
-        std::cout << "############ LENGTH OF LIST: " << j << " ############\n";
-
-        DATATYPE *unsorted = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *sorted_gpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *sorted_cpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-
-        initWithRandomData(unsorted,j);
+    initWithRandomData(unsorted, size);
         
-        memcpy(sorted_cpu,unsorted,sizeof(unsorted));
+    memcpy(sorted_cpu,unsorted,sizeof(unsorted));
 
-        int (*mergesort)(DATATYPE*,DATATYPE*,int); // function pointer
+    int (*mergesort)(DATATYPE*,DATATYPE*,int); // function pointer
 
-        switch (VERSION){
+    switch (VERSION){
         case 1: mergesort = &mergesort_global; break;
         case 2: mergesort = &mergesort_texture; break;
         case 3: mergesort = &mergesort_streams; break;
         //case 4: mergesort = &mergesort_shared; break;
         default: mergesort = &mergesort_global; break;
-        }
+    }
 
-        START_T(elapsed_time);
-        (*mergesort) (unsorted, sorted_gpu, j); // calling the proper version
-        STOP_T(elapsed_time);
-        
-        std::cout << "TIME TAKEN(Parallel GPU): "<< elapsed_time << " s\n";
+    // Redirect cout.
+    std::streambuf* oldCoutStreamBuf = std::cout.rdbuf();
+    std::ostringstream strCout;
+    std::cout.rdbuf( strCout.rdbuf() );
 
-        START_T(elapsed_time);
-        std::sort(sorted_cpu, sorted_cpu + j);
-        STOP_T(elapsed_time);
-        
-        std::cout << "TIME TAKEN(Sequential CPU): "<< elapsed_time << " s\n";
-        
-        bool valid = checkSolution(sorted_gpu,j);
+    START_T(elapsed_time_GPU);
+        (*mergesort) (unsorted, sorted_gpu, size); // calling the proper version
+    STOP_T(elapsed_time_GPU);
+
+    // Restore old cout.
+    std::cout.rdbuf( oldCoutStreamBuf );
+
+    std::string str = strCout.str();
+    str = str.substr(17, 7);
+    merge_time_GPU = atof(str.c_str()) / 1000;
+    
+    START_T(elapsed_time_CPU);
+        std::sort(sorted_cpu, sorted_cpu + size);
+    STOP_T(elapsed_time_CPU);
+    
+    std::cout << size << ";" << merge_time_GPU << ";" << elapsed_time_GPU << ";" << elapsed_time_CPU << "\n";
+
+    if (test){
+        bool valid = checkSolution(sorted_gpu, size);
         if(!valid){
             std::cout << "WRONG ANSWER\n";
             return -1;
         }
         else std::cout << "CORRECT ANSWER\n";
-
-        free(unsorted);
-        free(sorted_gpu);
-        free(sorted_cpu);
-        std::cout << "##################################################\n";
     }
+        
+    free(unsorted);
+    free(sorted_gpu);
+    free(sorted_cpu);
+
     return 0;
 }
 
