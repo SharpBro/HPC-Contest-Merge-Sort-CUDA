@@ -14,15 +14,15 @@ int main(int argc, char const *argv[]) {
     double elapsed_time_GPU, merge_time_GPU, elapsed_time_CPU;
 
     if(argc < 3){
-        std::cout << "usage: " << argv[0] << " [VERSION] [SIZE] {TEST}\n";
-        std::cout << "VERSION values:\n";
-        std::cout << "\t 1 - work on global memory\n";
-        std::cout << "\t 2 - work on texture memory\n";
-        std::cout << "\t 3 - work with streams on global memory\n";
-        std::cout << "\t default - work on global memory\n";
-        std::cout << "TEST (optional):\n";
-        std::cout << "\t any numbers - check corect result\n";
-        std::cout << "\t dafult - disabled\n";
+        std::cout << "usage: " << argv[0] << " [VERSION] [SIZE] {TEST}\n"
+        << "VERSION values:\n"
+        << "\t 1 - work on global memory\n"
+        << "\t 2 - work on texture memory\n"
+        << "\t 3 - work with streams on global memory\n"
+        << "\t default - work on global memory\n"
+        << "TEST (optional):\n"
+        << "\t any numbers - check corect result\n"
+        << "\t dafult - disabled\n";
         return -1;
     }
     
@@ -69,8 +69,8 @@ int main(int argc, char const *argv[]) {
     STOP_T(elapsed_time_CPU);
     
     //size; merge_time_GPU; elapsed_time_GPU; elapsed_time_CPU
-    std::cout << size << ";" << merge_time_GPU << ";" << elapsed_time_GPU << ";" << elapsed_time_CPU << "\n";
-
+    printf("%d;%.5f;%.5f;%.5f",size,merge_time_GPU,elapsed_time_GPU,elapsed_time_CPU);
+    
     if (test){
         bool valid = checkSolution(sorted_gpu, size);
         if(!valid){
