@@ -6,6 +6,11 @@ int main(int argc, char const *argv[]) {
     double elapsed_time;
 
     if(argc != 2){
+        std::cout << "usage: " << argv[0] << " [VERSION]\n";
+        std::cout << "\t 1 - work on global memory\n";
+        std::cout << "\t 2 - work on texture memory\n";
+        std::cout << "\t 3 - work with streams on global memory\n";
+        std::cout << "\t default - work on global memory\n";
         return -1;
     }
     
@@ -31,8 +36,8 @@ int main(int argc, char const *argv[]) {
         switch (VERSION){
         case 1: mergesort = &mergesort_global; break;
         case 2: mergesort = &mergesort_texture; break;
-        //case 3: mergesort = &mergesort_shared; break;
-        case 4: mergesort = &mergesort_streams; break;
+        case 3: mergesort = &mergesort_streams; break;
+        //case 4: mergesort = &mergesort_shared; break;
         default: mergesort = &mergesort_global; break;
         }
 
