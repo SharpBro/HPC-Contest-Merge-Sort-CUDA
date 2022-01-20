@@ -48,12 +48,12 @@ int mergesort_streams(DATATYPE *list, DATATYPE *sorted, int n) {
     cudaMalloc((void **)&list_d, size);
     cudaMalloc((void **)&sorted_d, size);
 
-    cudaStream_t str1,str2,str3;
-    cudaStreamCreate(&str1);
-    cudaStreamCreate(&str2);
-    cudaStreamCreate(&str3);
+    cudaStream_t load_H2D_str, kernel_str, load_D2H_str;
+    cudaStreamCreate(&load_H2D_str);
+    cudaStreamCreate(&kernel_str);
+    cudaStreamCreate(&load_D2H_str);
 
-    cudaMemcpyAsync(list_d, list, size, cudaMemcpyHostToDevice,str1);
+    cudaMemcpyAsync(list_d, list, size, cudaMemcpyHostToDevice, load_H2D_str);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf("Error_2: %s\n", cudaGetErrorString(err));
@@ -88,9 +88,9 @@ int mergesort_streams(DATATYPE *list, DATATYPE *sorted, int n) {
         if (threads_required <= 3 * warp_size && !sequential) {
             sequential = true;
             if (flag)
-                cudaMemcpyAsync(list, sorted_d, size, cudaMemcpyDeviceToHost,str3);
+                cudaMemcpyAsync(list, sorted_d, size, cudaMemcpyDeviceToHost,load_D2H_str);
             else
-                cudaMemcpyAsync(list, list_d, size, cudaMemcpyDeviceToHost,str3);
+                cudaMemcpyAsync(list, list_d, size, cudaMemcpyDeviceToHost,load_D2H_str);
             err = cudaGetLastError();
             if (err != cudaSuccess)
             {
@@ -148,9 +148,9 @@ int mergesort_streams(DATATYPE *list, DATATYPE *sorted, int n) {
             //std::cout << "parallel mode\n";
             cudaEventRecord(start);
             if (flag){
-                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,str2>>>(sorted_d, list_d, n, chunk_size);
+                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,kernel_str>>>(sorted_d, list_d, n, chunk_size);
             } else {
-                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,str2>>>(list_d, sorted_d, n, chunk_size);
+                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,kernel_str>>>(list_d, sorted_d, n, chunk_size);
             }
 
             cudaEventRecord(stop);
@@ -174,9 +174,9 @@ int mergesort_streams(DATATYPE *list, DATATYPE *sorted, int n) {
         }
     }
     
-    cudaStreamDestroy(str1);
-    cudaStreamDestroy(str2);
-    cudaStreamDestroy(str3);
+    cudaStreamDestroy(load_H2D_str);
+    cudaStreamDestroy(kernel_str);
+    cudaStreamDestroy(load_D2H_str);
 
     std::cout << "merge sort time: " << total_elapsed_time << " ms\n";
 
