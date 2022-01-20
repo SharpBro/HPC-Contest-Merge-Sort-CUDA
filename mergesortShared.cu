@@ -25,6 +25,10 @@
  * along with Contest-CUDA.  If not, see <http://www.gnu.org/licenses/>. 
  */
 
+/*
+* NOT WORKS PROPRELY
+*/
+
 #include "main.hpp"
 
 __device__ void merge_gpu_shared(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end);
