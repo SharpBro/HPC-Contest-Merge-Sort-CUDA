@@ -24,32 +24,28 @@ __device__ void merge_gpu_shared(DATATYPE *list, DATATYPE *sorted, int start, in
 
 __global__ void mergesort_gpu_shared(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
 
-    __shared__ DATATYPE listS[NB];
-    __shared__ DATATYPE sortedS[NB];
+    extern __shared__ DATATYPE listS[];
+    extern __shared__ DATATYPE sortedS[];
 
+    int idx = threadIdx.x;
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    int start = tid * chunk;
-    if (start >= n)
+
+    if (tid > n)
+        return;
+    listS[idx] = list[tid];
+    __syncthreads();
+
+    int start = idx * chunk;
+    if (start >= blockDim.x)
         return;
     int mid, end;
 
-    for (int kb = 0; kb < (n / NB); kb++){
-        memcpy(listS, list+(kb*NB), NB);
-        memcpy(sortedS, sorted+(kb*NB), NB);
+    mid = min(start + chunk / 2, blockDim.x);
+    end = min(start + chunk, blockDim.x);
+    merge_gpu_shared(listS, sortedS, start, mid, end);
+    __syncthreads();
 
-        mid = min(start + chunk / 2, NB);
-        end = min(start + chunk, NB);
-        merge_gpu_shared(listS, sortedS, start, mid, end);
-    }
-
-    if(n % NB){
-        memcpy(listS, list+(n - NB), n%NB);
-        memcpy(sortedS, sorted+(n - NB), n%NB);
-
-        mid = min(start + chunk / 2, n%NB);
-        end = min(start + chunk, n%NB);
-        merge_gpu_shared(listS, sortedS, start, mid, end);
-    }
+    sorted[tid] = sortedS[idx];
 }
 
 
@@ -160,10 +156,11 @@ int mergesort_shared(DATATYPE *list, DATATYPE *sorted, int n) {
             
             //std::cout << "parallel mode\n";
             cudaEventRecord(start);
+            int blockSize_byte = threads_per_block * sizeof(DATATYPE);
             if (flag){
-                mergesort_gpu_shared<<<blocks_required, threads_per_block>>>(sorted_d, list_d, n, chunk_size);
+                mergesort_gpu_shared<<<blocks_required, threads_per_block, blockSize_byte>>>(sorted_d, list_d, n, chunk_size);
             } else {
-                mergesort_gpu_shared<<<blocks_required, threads_per_block>>>(list_d, sorted_d, n, chunk_size);
+                mergesort_gpu_shared<<<blocks_required, threads_per_block, blockSize_byte>>>(list_d, sorted_d, n, chunk_size);
             }
 
             cudaEventRecord(stop);
