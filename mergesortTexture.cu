@@ -1,3 +1,30 @@
+/** 
+ * Course: High Performance Computing 2021/2022
+ *
+ * Lecturer: Francesco Moscato    fmoscato@unisa.it
+ *
+ * Group:
+ * Mario Pellegrino    0622701671  m.pellegrino42@studenti.unisa.it
+ * Francesco Sonnessa   0622701672   f.sonnessa@studenti.unisa.it
+ *
+ * Copyright (C) 2021 - All Rights Reserved 
+ *
+ * This file is part of Contest-CUDA.
+ *
+ * Contest-CUDA is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Contest-CUDA is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Contest-CUDA.  If not, see <http://www.gnu.org/licenses/>. 
+ */
+
 #include "main.hpp"
 
 __device__ void merge_gpu_texture(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end, bool flag);
