@@ -119,6 +119,9 @@ int mergesort_texture(DATATYPE *list, DATATYPE *sorted, int n) {
     int chunk_size;
     float total_elapsed_time = 0;
 
+    cudaChannelFormatDesc sorted_d_desc = cudaCreateChannelDesc<DATATYPE> ();
+    cudaChannelFormatDesc list_d_desc = cudaCreateChannelDesc<DATATYPE> ();
+
     for (chunk_size = 2; chunk_size < 2 * n; chunk_size *= 2) {
         int blocks_required = 0, threads_per_block = 0;
         int threads_required = (n % chunk_size == 0) ? n / chunk_size : n / chunk_size + 1;
@@ -182,10 +185,6 @@ int mergesort_texture(DATATYPE *list, DATATYPE *sorted, int n) {
             cudaEvent_t start, stop;
             cudaEventCreate(&start);
             cudaEventCreate(&stop);
-
-
-            cudaChannelFormatDesc sorted_d_desc = cudaCreateChannelDesc<DATATYPE> ();
-            cudaChannelFormatDesc list_d_desc = cudaCreateChannelDesc<DATATYPE> ();
             
             cudaBindTexture(0, tx_sorted_ref, sorted_d, sorted_d_desc); //binding texture memory
             cudaBindTexture(0, tx_list_ref, list_d, list_d_desc);
@@ -205,7 +204,7 @@ int mergesort_texture(DATATYPE *list, DATATYPE *sorted, int n) {
 
             total_elapsed_time += elapsed;
 
-            cudaDeviceSynchronize();
+            //cudaDeviceSynchronize();
 
             err = cudaGetLastError();
             if (err != cudaSuccess)
@@ -215,10 +214,10 @@ int mergesort_texture(DATATYPE *list, DATATYPE *sorted, int n) {
             }
             flag = !flag;
 
-            cudaUnbindTexture(tx_sorted_ref);
-            cudaUnbindTexture(tx_list_ref);
         }
     }
+    cudaUnbindTexture(tx_sorted_ref);
+    cudaUnbindTexture(tx_list_ref);
 
     std::cout << "merge sort time: " << total_elapsed_time << " ms\n";
 
