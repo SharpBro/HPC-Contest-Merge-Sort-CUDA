@@ -1,88 +1,39 @@
-#include <algorithm>
-#include <iostream>
-#include <time.h>
+/** 
+ * Course: High Performance Computing 2021/2022
+ *
+ * Lecturer: Francesco Moscato    fmoscato@unisa.it
+ *
+ * Group:
+ * Mario Pellegrino    0622701671  m.pellegrino42@studenti.unisa.it
+ * Francesco Sonnessa   0622701672   f.sonnessa@studenti.unisa.it
+ *
+ * Copyright (C) 2021 - All Rights Reserved 
+ *
+ * This file is part of Contest-CUDA.
+ *
+ * Contest-CUDA is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Contest-CUDA is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Contest-CUDA.  If not, see <http://www.gnu.org/licenses/>. 
+ */
 
-#define START_T(start)  start = clock()
-#define STOP_T(t)  t = (clock() - t)/CLOCKS_PER_SEC // ms insead of s
+#include "main.hpp"
 
-typedef int DATATYPE;
-
-int mergesort(DATATYPE *list, DATATYPE *sorted, int n);
-
-void merge(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end);
-
-void initWithRandomData(DATATYPE* l, int size);
-
-bool checkSolution(DATATYPE* l, int size);
-
-int main(int argc, char const *argv[]) {
-
-    //struct timespec start, stop;
-    double elapsed_time;
-
-    int i, j;
-    unsigned min_size = 2 << 16;
-    unsigned max_size = 2 << 25;
-    for(j=min_size; j<= max_size; j *= 2){
-        std::cout << "############ LENGTH OF LIST: " << j << " ############\n";
-
-        DATATYPE *unsorted = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *sorted_gpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-        DATATYPE *sorted_cpu = (DATATYPE *) malloc(j*sizeof(DATATYPE));
-
-        initWithRandomData(unsorted,j);
-        
-        memcpy(sorted_cpu,unsorted,sizeof(unsorted));
-
-        START_T(elapsed_time);
-        mergesort(unsorted, sorted_gpu, j);
-        STOP_T(elapsed_time);
-        
-        std::cout << "TIME TAKEN(Parallel GPU): "<< elapsed_time << " s\n";
-
-        START_T(elapsed_time);
-        std::sort(sorted_cpu, sorted_cpu + j);
-        STOP_T(elapsed_time);
-        
-        std::cout << "TIME TAKEN(Sequential CPU): "<< elapsed_time << " s\n";
-        
-        for(i=1; i<j; i++){
-            if(sorted_gpu[i-1]>sorted_gpu[i]){
-                std::cout << "WRONG ANSWER _1\n";
-                return -1;
-            }
-        }
-        bool valid = checkSolution(sorted_gpu,j);
-
-        if(!valid) std::cout << "WRONG ANSWER _1\n";
-        else std::cout << "CORRECT ANSWER\n";
-
-        free(unsorted);
-        free(sorted_gpu);
-        free(sorted_cpu);
-        std::cout << "##################################################\n";
-    }
-    return 0;
-}
-
-
-void initWithRandomData(DATATYPE* l, int size){
-    for(int i=0; i<size; i++){
-        l[i] = rand();
-    }
-}
-
-bool checkSolution(DATATYPE* l, int size){
-    for(int i=1; i<size; i++){
-        if(l[i-1] > l[i]) return false;
-    }
-    return true;
-}
+__device__ void merge_gpu_streams(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end);
+__global__ void mergesort_gpu_streams(DATATYPE *list, DATATYPE *sorted, int n, int chunk);
 
 // // // // // // // // // // // // // // // //
 //  GPU Implementation                       //
 // // // // // // // // // // // // // // // //
-__device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end) {
+__device__ void merge_gpu_streams(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end) {
     int k = start, i = start, j = mid;
     while (i < mid || j < end)
     {
@@ -98,7 +49,7 @@ __device__ void merge_gpu(DATATYPE *list, DATATYPE *sorted, int start, int mid, 
     }
 }
 
-__global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
+__global__ void mergesort_gpu_streams(DATATYPE *list, DATATYPE *sorted, int n, int chunk) {
 
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int start = tid * chunk;
@@ -108,39 +59,10 @@ __global__ void mergesort_gpu(DATATYPE *list, DATATYPE *sorted, int n, int chunk
 
     mid = min(start + chunk / 2, n);
     end = min(start + chunk, n);
-    merge_gpu(list, sorted, start, mid, end);
+    merge_gpu_streams(list, sorted, start, mid, end);
 }
 
-// Sequential Merge Sort for GPU when Number of Threads Required gets below 1 Warp Size
-void mergesort_gpu_seq(DATATYPE *list, DATATYPE *sorted, int n, int chunk)
-{
-    int chunk_id;
-    for (chunk_id = 0; chunk_id * chunk <= n; chunk_id++) {
-        int start = chunk_id * chunk, end, mid;
-        if (start >= n)
-            return;
-        mid = min(start + chunk / 2, n);
-        end = min(start + chunk, n);
-        merge(list, sorted, start, mid, end);
-    }
-}
-
-void merge(DATATYPE *list, DATATYPE *sorted, int start, int mid, int end)
-{
-    int ti=start, i=start, j=mid;
-    while (i<mid || j<end) {
-        if (j==end) sorted[ti] = list[i++];
-        else if (i==mid) sorted[ti] = list[j++];
-        else if (list[i]<list[j]) sorted[ti] = list[i++];
-        else sorted[ti] = list[j++];
-        ti++;
-    }
-
-    for (ti=start; ti<end; ti++)
-        list[ti] = sorted[ti];
-}
-
-int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
+int mergesort_streams(DATATYPE *list, DATATYPE *sorted, int n) {
 
     DATATYPE *list_d;
     DATATYPE *sorted_d;
@@ -153,12 +75,12 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
     cudaMalloc((void **)&list_d, size);
     cudaMalloc((void **)&sorted_d, size);
 
-    cudaStream_t str1,str2,str3;
-    cudaStreamCreate(&str1);
-    cudaStreamCreate(&str2);
-    cudaStreamCreate(&str3);
+    cudaStream_t load_H2D_str, kernel_str, load_D2H_str;
+    cudaStreamCreate(&load_H2D_str);
+    cudaStreamCreate(&kernel_str);
+    cudaStreamCreate(&load_D2H_str);
 
-    cudaMemcpyAsync(list_d, list, size, cudaMemcpyHostToDevice,str1);
+    cudaMemcpyAsync(list_d, list, size, cudaMemcpyHostToDevice, load_H2D_str);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf("Error_2: %s\n", cudaGetErrorString(err));
@@ -193,9 +115,9 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
         if (threads_required <= 3 * warp_size && !sequential) {
             sequential = true;
             if (flag)
-                cudaMemcpyAsync(list, sorted_d, size, cudaMemcpyDeviceToHost,str3);
+                cudaMemcpyAsync(list, sorted_d, size, cudaMemcpyDeviceToHost,load_D2H_str);
             else
-                cudaMemcpyAsync(list, list_d, size, cudaMemcpyDeviceToHost,str3);
+                cudaMemcpyAsync(list, list_d, size, cudaMemcpyDeviceToHost,load_D2H_str);
             err = cudaGetLastError();
             if (err != cudaSuccess)
             {
@@ -253,9 +175,9 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
             //std::cout << "parallel mode\n";
             cudaEventRecord(start);
             if (flag){
-                mergesort_gpu<<<blocks_required, threads_per_block,0,str2>>>(sorted_d, list_d, n, chunk_size);
+                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,kernel_str>>>(sorted_d, list_d, n, chunk_size);
             } else {
-                mergesort_gpu<<<blocks_required, threads_per_block,0,str2>>>(list_d, sorted_d, n, chunk_size);
+                mergesort_gpu_streams<<<blocks_required, threads_per_block,0,kernel_str>>>(list_d, sorted_d, n, chunk_size);
             }
 
             cudaEventRecord(stop);
@@ -279,9 +201,9 @@ int mergesort(DATATYPE *list, DATATYPE *sorted, int n) {
         }
     }
     
-    cudaStreamDestroy(str1);
-    cudaStreamDestroy(str2);
-    cudaStreamDestroy(str3);
+    cudaStreamDestroy(load_H2D_str);
+    cudaStreamDestroy(kernel_str);
+    cudaStreamDestroy(load_D2H_str);
 
     std::cout << "merge sort time: " << total_elapsed_time << " ms\n";
 
