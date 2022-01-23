@@ -66,6 +66,11 @@ __global__ void mergesort_gpu_shared(DATATYPE *list, DATATYPE *sorted, int n, in
     listS[idx] = list[tid];
     __syncthreads();
 
+    int start = idx * chunk;
+    if (start >= blockDim.x)
+        return;
+    int mid, end;
+
     mid = min(start + chunk / 2, blockDim.x);
     end = min(start + chunk, blockDim.x);
     merge_gpu_shared(listS, sortedS, start, mid, end);
@@ -73,7 +78,6 @@ __global__ void mergesort_gpu_shared(DATATYPE *list, DATATYPE *sorted, int n, in
 
     sorted[tid] = sortedS[idx];
 }
-
 
 int mergesort_shared(DATATYPE *list, DATATYPE *sorted, int n) {
 
